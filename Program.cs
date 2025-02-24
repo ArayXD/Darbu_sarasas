@@ -104,7 +104,7 @@ public class Program
     public static void Main()
     {
         IStorageService storageService = new FileStorageService();//DIP
-        TaskManager taskManager = new TaskManager(storageService);
+        TaskManager taskManager = new TaskManager(storageService);//asdasdasdasdasdasd
 
         while (true)
         {
