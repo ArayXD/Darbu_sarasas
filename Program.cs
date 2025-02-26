@@ -1,56 +1,57 @@
 ﻿using System; //Importuoja funkcijas i sistema kaip input/output
 using System.Collections.Generic; //Importuoja namespace norint naudotis List<T>
-using System.IO; //Importuoja failu operacijoms
+using System.IO;//Importuoja failu operacijoms
+using Newtonsoft.Json; //Importuoja failu serializacijos biblioteka
 
-// 1️ Interface Segregation & Dependency Inversion (DIP) - SOLID: Dependency Inversion (D)
+// Single Responability (SOLID) 
 public interface IStorageService //Abstraction//Apibrėžia saugojimo mechanizmų abstraction
 {
-    void SaveTasks(List<TaskItem> tasks); //Interface Segregation//Metodas Issaugoti darbus
-    List<TaskItem> LoadTasks(); //Dependency Inversion//Metodas Ikelti darbus
+    void SaveTasks(List<TaskItem> tasks); //Metodas Issaugoti darbus
+    List<TaskItem> LoadTasks(); //Metodas Ikelti darbus
 }
 
-// 2️ Entity class - Encapsulation & Abstraction 
-public class TaskItem //Encapsulation//Nurodo uzduoti darbu sarase
+// Single Responsibility
+public class TaskItem //Nurodo uzduoti darbu sarase
 {
-    public int Id { get; set; }
-    public string Aprasymas { get; set; }
-    public bool IsCompleted { get; set; }
+    public int Id { get; private set; }
+    public string Aprasymas { get; private set; } //Encapsulation - kontroliuoja prieeiga prie klases elementu
+    public bool IsCompleted { get; private set; }
 
-    public TaskItem(int id, string aprasymas) //Abstraction - slepia igyvendinimo datales//Konstruktorius inicijuoja nauja uzduoti
+    public TaskItem(int id, string aprasymas) //Encapsulation - suteikia prieeiga prie nepasiekiamu klases elementu//Konstruktorius inicijuoja nauja uzduoti su tokiais parametrais
     {
         Id = id;
         Aprasymas = aprasymas;
         IsCompleted = false;
     }
-    public void MarkComplete() //Encapsulation - apsaugo uzduoties busena//Pazymi uzduoti kaip atlikta
+    public void MarkComplete() //Encapsulation - suteikia prieeiga prie nepasiekiamu klases elementu//Pazymi uzduoti kaip atlikta
     {
         IsCompleted = true;
     }
-    public override string ToString() //Polymorphysm//Overrides default ToString, kad formatuotu uzduoti
+    public override string ToString() //Overrides default ToString, kad formatuotu uzduoti
     {
         return $"{Id}. [{(IsCompleted ? "✔" : " ")}] {Aprasymas}"; //parodo uzduoti
     }
 }
-// 3️ Single Responsibility Principle (SRP) - TaskManager handles task-related operations
+
 public class TaskManager //Single Responsibility - valdo tik su uzduotimis susijusia logika
 {
     private readonly List<TaskItem> _tasks = new(); //Encapsulation - privatus uzduociu sarasas//Issaugo uzduociu sarasa
-    private readonly IStorageService _storageService; //Dependency Inversion - naudoja abstrackcija//Priklausomybe nuo Storage paslaugos
+    private readonly IStorageService _storageService; //Priklausomybe nuo Storage paslaugos
 
-    public TaskManager(IStorageService storageService) //Dependecy Injection//Konstruktorius suleidzia Storage paslauga
+    public TaskManager(IStorageService storageService) //Dependecy Inversion - Pakeiciam kodo funkcija nepakeisdamas koda//Konstruktorius suleidzia Storage paslauga
     {
         _storageService = storageService;
         _tasks = _storageService.LoadTasks() ?? new List<TaskItem>(); //Ikelia uzduotis is saugyklos arba inicijuoja nauja sarasa
     }
 
-    public void AddTask(string aprasymas) //Single Responsibility//Itraukia nauja uzduoti i sarasa
+    public void AddTask(string aprasymas) //Itraukia nauja uzduoti i sarasa
     {
         int newId = _tasks.Count + 1; //Automatiskai generuoja nauja uzduoties ID
         _tasks.Add(new TaskItem(newId, aprasymas)); //Sukuria ir prideda nauja uzduoti
         _storageService.SaveTasks(_tasks); //Isaugoja atnaujinta sarasa
     }
 
-    public void MarkTaskComplete(int taskId) //Single Responsibility//Pazymi uzduoti atlikta
+    public void MarkTaskComplete(int taskId) //Pazymi uzduoti atlikta
     {
         var task = _tasks.Find(t => t.Id == taskId); //Rasti uzduoti naudojant pagal ID
         if (task != null) //Isitikina kad uzduotis egzistuoja
@@ -60,51 +61,38 @@ public class TaskManager //Single Responsibility - valdo tik su uzduotimis susij
         }
     }
 
-    public void ShowTasks() //Single Responsibility//Parodo visas uzduotis
+    public void ShowTasks() //Parodo visas uzduotis
     {
         Console.WriteLine("\n--- To-Do List ---"); 
-        _tasks.ForEach(Console.WriteLine); //Polymorphysm//Spausdina visas uzduotis naudojant overriden ToString()
+        _tasks.ForEach(Console.WriteLine); //Spausdina visas uzduotis naudojant overriden ToString()
     }
 }
 
-// 4️ Implementation of IStorageService (Liskov Substitution & Open/Closed Principles)
+// Implementation of IStorageService
 public class FileStorageService : IStorageService //Inheratence - Paveldzia is IStorageService //Igyvendina Storage paslauga naudojant tekstini faila
 {
-    private readonly string _filePath = "tasks.txt"; //Failo kelias uzduotis saugoti
+    private readonly string _filePath = "tasks.txt"; //Encapsuliacion - paslepia koda kad neredaguotu//Failo kelias uzduotis saugoti
 
-    public void SaveTasks(List<TaskItem> tasks) //Single Responsibility//Issaugo uzduotis faile
+    public void SaveTasks(List<TaskItem> tasks) //Issaugo uzduotis faile
     {
         using StreamWriter writer = new StreamWriter(_filePath); //Atidaro faila rasymui
-        foreach (var task in tasks) //Kartoja per uzduotis
-        {
-            writer.WriteLine($"{task.Id}|{task.Aprasymas}|{task.IsCompleted}"); //Parasyta uzduoties informacija vamzdziais atskirtu formatu
-        }
+        writer.WriteLine(JsonConvert.SerializeObject(tasks)); //Serialization - konvertuoja uzdsuociu sarasa i texta kuris formatuotas Json formatu tam kad butu galima paskui perskaityti
     }
 
-    public List<TaskItem> LoadTasks() //Single Responsibility//Ikelia uzduotis is failo
+    public List<TaskItem> LoadTasks() //Ikelia uzduotis is failo
     {
         if (!File.Exists(_filePath)) return new List<TaskItem>(); //Grazina tuscia sarasa jei failo nera
 
-        var tasks = new List<TaskItem>(); //Sukuria tuscia sarasa
-        foreach (var line in File.ReadAllLines(_filePath)) //Skaito faila line by line
-        {
-            var parts = line.Split('|'); //Padalina line per pusia
-            var task = new TaskItem(int.Parse(parts[0]), parts[1]) //Liskov Substitution - Objekto keitimas veikia//Sukuria uzduoti is failo duomenu
-            {
-                IsCompleted = bool.Parse(parts[2]) //Nustato uzbaigimo busena
-            };
-            tasks.Add(task); //Prideda uzduoti i sarasa
-        }
-        return tasks; //Grazina ikeltas uzduotis
+        return (List<TaskItem>)JsonConvert.DeserializeObject(File.ReadAllText(_filePath))?? throw new ArgumentNullException("Error while reading Json file"); //Exception - jeigu nutinka klaida pranesama sistemai//Serialzation - konvertuoja texta is Json failo atgal i uzduociu sarasa
     }
 }
 
-// 5️⃣ High-level Application Layer (Dependency Inversion Principle)
-public class Program
+
+public class Program  
 {
     public static void Main() //Programos iejimo taskas
     {
-        IStorageService storageService = new FileStorageService();//Dependency Inversion - naudoja abstrakcija//Naudoja failo saugykla
+        IStorageService storageService = new FileStorageService();//Naudoja failo saugykla
         TaskManager taskManager = new TaskManager(storageService);//Iveda saugyklos priklausomybe i TaskManageri
 
         while (true) //Begalinis ciklas, kad programa veiktu iki isjungimo
@@ -118,12 +106,12 @@ public class Program
                 case "1": //Add Task
                     Console.Write("Enter task description: ");
                     string aprasymas = Console.ReadLine(); //Gauna uzduoties aprasyma
-                    taskManager.AddTask(aprasymas); //Polymorphysm - Calls method dynamically//Prideda nauja uzduoti
+                    taskManager.AddTask(aprasymas); //Prideda nauja uzduoti
                     break;
                 case "2": //Mark Task As Complete
                     Console.Write("Enter task ID to mark complete: ");
                     if (int.TryParse(Console.ReadLine(), out int taskId)) //Patvirtina ivedima
-                        taskManager.MarkTaskComplete(taskId); //Polymorphysm - Calls method dynamically//Pazymi kaip atlikta
+                        taskManager.MarkTaskComplete(taskId); //Pazymi kaip atlikta
                     break;
                 case "3": //Show tasks
                     taskManager.ShowTasks(); //Rodo visas uzduotis
